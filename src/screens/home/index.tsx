@@ -26,6 +26,24 @@ export default function Home() {
   const [latexPosition, setLatexPosition] = useState({ x: 10, y: 200 });
   const [latexExpression, setLatexExpression] = useState<Array<string>>([]);
 
+  const getCoordinates = (
+    event: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
+  ) => {
+    if ("touches" in event && event.touches.length > 0) {
+      const touch = event.touches[0];
+      const rect = (event.target as HTMLCanvasElement).getBoundingClientRect();
+      return {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top,
+      };
+    } else {
+      return {
+        x: (event as React.MouseEvent<HTMLCanvasElement>).nativeEvent.offsetX,
+        y: (event as React.MouseEvent<HTMLCanvasElement>).nativeEvent.offsetY,
+      };
+    }
+  };
+
   const handleReset = useCallback(() => {
     setReset(true);
   }, []);
@@ -178,8 +196,23 @@ export default function Home() {
       });
     };
 
+    const preventTouch = (e: TouchEvent) => {
+      if (e.target === canvas) {
+        e.preventDefault();
+      }
+    };
+
+    if (canvas) {
+      canvas.addEventListener("touchstart", preventTouch, { passive: false });
+      canvas.addEventListener("touchmove", preventTouch, { passive: false });
+    }
+
     return () => {
       document.head.removeChild(script);
+      if (canvas) {
+        canvas.removeEventListener("touchstart", preventTouch);
+        canvas.removeEventListener("touchmove", preventTouch);
+      }
     };
   }, []);
 
@@ -193,33 +226,44 @@ export default function Home() {
     }
   };
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const startDrawing = (
+    event: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
+  ) => {
+    event.preventDefault();
+    const coordinates = getCoordinates(event);
     const canvas = canvasRef.current;
     if (canvas) {
       canvas.style.background = "#18181B";
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.beginPath();
-        ctx.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+        ctx.moveTo(coordinates.x, coordinates.y);
         setIsDrawing(true);
       }
     }
   };
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) {
-      return;
-    }
+
+  const draw = (
+    event: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
+  ) => {
+    event.preventDefault();
+    if (!isDrawing) return;
+    const coordinates = getCoordinates(event);
     const canvas = canvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.strokeStyle = color;
-        ctx.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+        ctx.lineTo(coordinates.x, coordinates.y);
         ctx.stroke();
       }
     }
   };
-  const stopDrawing = () => {
+
+  const stopDrawing = (
+    event: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
+  ) => {
+    event.preventDefault();
     setIsDrawing(false);
   };
 
@@ -248,6 +292,10 @@ export default function Home() {
           onMouseMove={draw}
           onMouseUp={stopDrawing}
           onMouseOut={stopDrawing}
+          onTouchStart={startDrawing}
+          onTouchMove={draw}
+          onTouchEnd={stopDrawing}
+          onTouchCancel={stopDrawing}
         />
       </div>
       {latexExpression &&
